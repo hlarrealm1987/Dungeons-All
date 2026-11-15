@@ -23,6 +23,30 @@ jobs:
           chmod +x gradlew
           set -o pipefail
           ./gradlew build --no-daemon 2>&1 | tee build-log.txt
+      - name: Probe Minecraft 26.3 API
+        if: always()
+        run: |
+          J=""
+          for f in $(find build ~/.gradle -name '*.jar' -size +15M 2>/dev/null); do
+            if unzip -l "$f" 2>/dev/null | grep -q 'net/minecraft/world/level/levelgen/RandomState.class'; then J="$f"; break; fi
+          done
+          echo "JAR: $J" > probe.txt
+          for c in net.minecraft.world.level.levelgen.RandomState \
+                   net.minecraft.world.level.storage.loot.LootContext \
+                   net.minecraft.server.packs.resources.ResourceManager \
+                   net.minecraft.server.packs.resources.ResourceProvider \
+                   'net.minecraft.world.level.levelgen.structure.Structure$GenerationContext' \
+                   net.minecraft.world.level.biome.BiomeSource \
+                   net.minecraft.world.level.storage.loot.functions.LootItemConditionalFunction; do
+            echo "===== $c" >> probe.txt
+            javap -cp "$J" "$c" >> probe.txt 2>&1 || true
+          done
+      - name: Upload probe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe
+          path: probe.txt
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
